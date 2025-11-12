@@ -63,6 +63,88 @@ cargo clippy             # Run linter
 cargo check              # Quick compile check without producing binary
 ```
 
+## Git Workflow
+
+This project follows a feature branch workflow:
+
+### Creating a New Feature
+
+```bash
+# Create and switch to a new feature branch
+git checkout -b feat/your-feature-name
+
+# Make your changes, then stage them
+git add -A
+
+# Commit with a descriptive message
+git commit -m "feat: description of your feature
+
+Detailed explanation of what was implemented and why.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+# Push the feature branch to GitHub
+git push -u origin feat/your-feature-name
+```
+
+### Branch Naming Convention
+
+- `feat/` - New features (e.g., `feat/nasa-ssc-tui-implementation`)
+- `fix/` - Bug fixes (e.g., `fix/api-timeout-handling`)
+- `docs/` - Documentation changes (e.g., `docs/update-readme`)
+- `refactor/` - Code refactoring (e.g., `refactor/ssc-client-structure`)
+- `test/` - Test additions or updates (e.g., `test/api-integration`)
+
+### Commit Message Format
+
+Follow conventional commits:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `test:` - Adding or updating tests
+- `chore:` - Maintenance tasks
+
+**Example:**
+```
+feat: add satellite trajectory visualization
+
+Implement orbital trajectory plotting for selected satellites using
+the NASA SSC location API.
+
+- Add trajectory data fetching from /locations endpoint
+- Implement 3D coordinate transformation
+- Add visualization rendering in Analysis tab
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+### Creating Pull Requests
+
+After pushing your feature branch, create a pull request on GitHub:
+
+```bash
+# The push command will output a URL like:
+# https://github.com/Sheepybloke2-0/ssc-tui/pull/new/feat/your-feature-name
+
+# Visit that URL or go to GitHub and create the PR manually
+```
+
+### Checking Status
+
+```bash
+git status                          # Check current changes
+git diff                            # View unstaged changes
+git diff --staged                   # View staged changes
+git log --oneline -5                # View recent commits
+git branch                          # List local branches
+git branch -r                       # List remote branches
+```
+
 ## Project Structure
 
 The project is organized into modules:
