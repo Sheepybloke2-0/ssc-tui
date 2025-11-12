@@ -282,3 +282,89 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let paragraph = Paragraph::new(status_text).block(block);
     f.render_widget(paragraph, area);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_centered_rect_80_60() {
+        let screen = Rect::new(0, 0, 100, 100);
+        let centered = centered_rect(80, 60, screen);
+
+        // Width: 80% of 100 = 80, centered means starting at 10
+        assert_eq!(centered.x, 10);
+        assert_eq!(centered.width, 80);
+
+        // Height: 60% of 100 = 60, centered means starting at 20
+        assert_eq!(centered.y, 20);
+        assert_eq!(centered.height, 60);
+    }
+
+    #[test]
+    fn test_centered_rect_50_50() {
+        let screen = Rect::new(0, 0, 200, 100);
+        let centered = centered_rect(50, 50, screen);
+
+        // Width: 50% of 200 = 100, centered means starting at 50
+        assert_eq!(centered.x, 50);
+        assert_eq!(centered.width, 100);
+
+        // Height: 50% of 100 = 50, centered means starting at 25
+        assert_eq!(centered.y, 25);
+        assert_eq!(centered.height, 50);
+    }
+
+    #[test]
+    fn test_centered_rect_100_100() {
+        let screen = Rect::new(0, 0, 100, 100);
+        let centered = centered_rect(100, 100, screen);
+
+        // 100% should fill entire screen
+        assert_eq!(centered.x, 0);
+        assert_eq!(centered.y, 0);
+        assert_eq!(centered.width, 100);
+        assert_eq!(centered.height, 100);
+    }
+
+    #[test]
+    fn test_centered_rect_small_screen() {
+        let screen = Rect::new(0, 0, 50, 30);
+        let centered = centered_rect(80, 60, screen);
+
+        // Width: 80% of 50 = 40, centered means starting at 5
+        assert_eq!(centered.x, 5);
+        assert_eq!(centered.width, 40);
+
+        // Height: 60% of 30 = 18, centered means starting at 6
+        assert_eq!(centered.y, 6);
+        assert_eq!(centered.height, 18);
+    }
+
+    #[test]
+    fn test_centered_rect_offset_origin() {
+        // Test with a rect that doesn't start at (0, 0)
+        let screen = Rect::new(10, 20, 100, 100);
+        let centered = centered_rect(50, 50, screen);
+
+        // The centered rect should be within the bounds of screen
+        assert!(centered.x >= screen.x);
+        assert!(centered.y >= screen.y);
+        assert!(centered.x + centered.width <= screen.x + screen.width);
+        assert!(centered.y + centered.height <= screen.y + screen.height);
+    }
+
+    #[test]
+    fn test_centered_rect_proportions() {
+        let screen = Rect::new(0, 0, 120, 80);
+        let centered = centered_rect(60, 40, screen);
+
+        // Verify the centered rect has the correct proportions
+        assert_eq!(centered.width, 72); // 60% of 120
+        assert_eq!(centered.height, 32); // 40% of 80
+
+        // Verify it's centered
+        assert_eq!(centered.x, 24); // (120 - 72) / 2
+        assert_eq!(centered.y, 24); // (80 - 32) / 2
+    }
+}

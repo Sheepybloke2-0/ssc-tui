@@ -196,3 +196,330 @@ impl Default for App {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sort_order_next() {
+        assert_eq!(SortOrder::NameAZ.next(), SortOrder::NameZA);
+        assert_eq!(SortOrder::NameZA.next(), SortOrder::StartDate);
+        assert_eq!(SortOrder::StartDate.next(), SortOrder::NameAZ);
+    }
+
+    #[test]
+    fn test_sort_order_as_str() {
+        assert_eq!(SortOrder::NameAZ.as_str(), "Name (A-Z)");
+        assert_eq!(SortOrder::NameZA.as_str(), "Name (Z-A)");
+        assert_eq!(SortOrder::StartDate.as_str(), "Start Date");
+    }
+
+    #[test]
+    fn test_app_new() {
+        let app = App::new();
+        assert_eq!(app.should_quit, false);
+        assert_eq!(app.loading, true);
+        assert_eq!(app.show_detail_overlay, false);
+        assert_eq!(app.sort_order, SortOrder::NameAZ);
+        assert_eq!(app.satellites.len(), 0);
+        assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_app_default() {
+        let app = App::default();
+        assert_eq!(app.should_quit, false);
+        assert_eq!(app.loading, true);
+    }
+
+    #[test]
+    fn test_navigation_empty_list() {
+        let mut app = App::new();
+
+        // Navigation should not panic on empty list
+        app.next_satellite();
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.previous_satellite();
+        assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_navigation_single_item() {
+        let mut app = App::new();
+        app.satellites = vec![create_test_satellite("sat1", "Satellite 1")];
+
+        // Next wraps to beginning
+        app.next_satellite();
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        // Previous wraps to end
+        app.previous_satellite();
+        assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_navigation_multiple_items() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Satellite 1"),
+            create_test_satellite("sat2", "Satellite 2"),
+            create_test_satellite("sat3", "Satellite 3"),
+        ];
+        app.list_state.select(Some(0));
+
+        // Move forward
+        app.next_satellite();
+        assert_eq!(app.list_state.selected(), Some(1));
+
+        app.next_satellite();
+        assert_eq!(app.list_state.selected(), Some(2));
+
+        // Wrap to beginning
+        app.next_satellite();
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        // Move backward
+        app.previous_satellite();
+        assert_eq!(app.list_state.selected(), Some(2));
+
+        app.previous_satellite();
+        assert_eq!(app.list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn test_sort_satellites_name_az() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat3", "Zebra"),
+            create_test_satellite("sat1", "Alpha"),
+            create_test_satellite("sat2", "Beta"),
+        ];
+        app.sort_order = SortOrder::NameAZ;
+
+        app.sort_satellites();
+
+        assert_eq!(app.satellites[0].name, "Alpha");
+        assert_eq!(app.satellites[1].name, "Beta");
+        assert_eq!(app.satellites[2].name, "Zebra");
+    }
+
+    #[test]
+    fn test_sort_satellites_name_za() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Alpha"),
+            create_test_satellite("sat3", "Zebra"),
+            create_test_satellite("sat2", "Beta"),
+        ];
+        app.sort_order = SortOrder::NameZA;
+
+        app.sort_satellites();
+
+        assert_eq!(app.satellites[0].name, "Zebra");
+        assert_eq!(app.satellites[1].name, "Beta");
+        assert_eq!(app.satellites[2].name, "Alpha");
+    }
+
+    #[test]
+    fn test_sort_satellites_case_insensitive() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "alpha"),
+            create_test_satellite("sat2", "BETA"),
+            create_test_satellite("sat3", "Zebra"),
+        ];
+        app.sort_order = SortOrder::NameAZ;
+
+        app.sort_satellites();
+
+        assert_eq!(app.satellites[0].name, "alpha");
+        assert_eq!(app.satellites[1].name, "BETA");
+        assert_eq!(app.satellites[2].name, "Zebra");
+    }
+
+    #[test]
+    fn test_sort_satellites_by_start_date() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite_with_date("sat2", "Sat2", "2020-01-01T00:00:00Z"),
+            create_test_satellite_with_date("sat1", "Sat1", "2010-01-01T00:00:00Z"),
+            create_test_satellite_with_date("sat3", "Sat3", "2025-01-01T00:00:00Z"),
+        ];
+        app.sort_order = SortOrder::StartDate;
+
+        app.sort_satellites();
+
+        assert_eq!(app.satellites[0].name, "Sat1");
+        assert_eq!(app.satellites[1].name, "Sat2");
+        assert_eq!(app.satellites[2].name, "Sat3");
+    }
+
+    #[test]
+    fn test_cycle_sort_order() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Beta"),
+            create_test_satellite("sat2", "Alpha"),
+        ];
+
+        assert_eq!(app.sort_order, SortOrder::NameAZ);
+
+        app.cycle_sort_order();
+        assert_eq!(app.sort_order, SortOrder::NameZA);
+        assert_eq!(app.list_state.selected(), Some(0)); // Selection reset
+        assert_eq!(app.satellites[0].name, "Beta"); // Reverse sorted
+
+        app.cycle_sort_order();
+        assert_eq!(app.sort_order, SortOrder::StartDate);
+
+        app.cycle_sort_order();
+        assert_eq!(app.sort_order, SortOrder::NameAZ);
+    }
+
+    #[test]
+    fn test_get_selected_satellite() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Satellite 1"),
+            create_test_satellite("sat2", "Satellite 2"),
+            create_test_satellite("sat3", "Satellite 3"),
+        ];
+
+        app.list_state.select(Some(0));
+        assert_eq!(app.get_selected_satellite().unwrap().name, "Satellite 1");
+
+        app.list_state.select(Some(1));
+        assert_eq!(app.get_selected_satellite().unwrap().name, "Satellite 2");
+
+        app.list_state.select(Some(2));
+        assert_eq!(app.get_selected_satellite().unwrap().name, "Satellite 3");
+    }
+
+    #[test]
+    fn test_get_selected_satellite_none() {
+        let mut app = App::new();
+        app.satellites = vec![create_test_satellite("sat1", "Satellite 1")];
+
+        app.list_state.select(None);
+        assert!(app.get_selected_satellite().is_none());
+    }
+
+    #[test]
+    fn test_get_selected_satellite_out_of_bounds() {
+        let mut app = App::new();
+        app.satellites = vec![create_test_satellite("sat1", "Satellite 1")];
+
+        app.list_state.select(Some(10));
+        assert!(app.get_selected_satellite().is_none());
+    }
+
+    #[test]
+    fn test_handle_key_event_quit() {
+        let mut app = App::new();
+        assert_eq!(app.should_quit, false);
+
+        app.handle_key_event(KeyCode::Char('q'));
+        assert_eq!(app.should_quit, true);
+    }
+
+    #[test]
+    fn test_handle_key_event_sort() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Beta"),
+            create_test_satellite("sat2", "Alpha"),
+        ];
+
+        assert_eq!(app.sort_order, SortOrder::NameAZ);
+
+        app.handle_key_event(KeyCode::Char('s'));
+        assert_eq!(app.sort_order, SortOrder::NameZA);
+    }
+
+    #[test]
+    fn test_handle_key_event_navigation() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Sat1"),
+            create_test_satellite("sat2", "Sat2"),
+        ];
+        app.list_state.select(Some(0));
+
+        app.handle_key_event(KeyCode::Down);
+        assert_eq!(app.list_state.selected(), Some(1));
+
+        app.handle_key_event(KeyCode::Up);
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.handle_key_event(KeyCode::Char('j'));
+        assert_eq!(app.list_state.selected(), Some(1));
+
+        app.handle_key_event(KeyCode::Char('k'));
+        assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_handle_key_event_overlay() {
+        let mut app = App::new();
+        assert_eq!(app.show_detail_overlay, false);
+
+        app.handle_key_event(KeyCode::Enter);
+        assert_eq!(app.show_detail_overlay, true);
+
+        app.handle_key_event(KeyCode::Esc);
+        assert_eq!(app.show_detail_overlay, false);
+
+        app.handle_key_event(KeyCode::Enter);
+        assert_eq!(app.show_detail_overlay, true);
+
+        app.handle_key_event(KeyCode::Char('q'));
+        assert_eq!(app.show_detail_overlay, false);
+    }
+
+    #[test]
+    fn test_overlay_blocks_other_keys() {
+        let mut app = App::new();
+        app.satellites = vec![
+            create_test_satellite("sat1", "Sat1"),
+            create_test_satellite("sat2", "Sat2"),
+        ];
+        app.list_state.select(Some(0));
+        app.show_detail_overlay = true;
+
+        let initial_selection = app.list_state.selected();
+
+        // These keys should be ignored when overlay is showing
+        app.handle_key_event(KeyCode::Down);
+        assert_eq!(app.list_state.selected(), initial_selection);
+
+        app.handle_key_event(KeyCode::Char('s'));
+        assert_eq!(app.sort_order, SortOrder::NameAZ); // Sort didn't change
+    }
+
+    // Helper functions for creating test data
+    fn create_test_satellite(id: &str, name: &str) -> Observatory {
+        Observatory {
+            id: id.to_string(),
+            name: name.to_string(),
+            resolution: 60,
+            start_time: "2020-01-01T00:00:00Z".to_string(),
+            end_time: "2030-01-01T00:00:00Z".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        }
+    }
+
+    fn create_test_satellite_with_date(id: &str, name: &str, start_time: &str) -> Observatory {
+        Observatory {
+            id: id.to_string(),
+            name: name.to_string(),
+            resolution: 60,
+            start_time: start_time.to_string(),
+            end_time: "2030-01-01T00:00:00Z".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        }
+    }
+}

@@ -1,0 +1,99 @@
+# GitLab CI/CD configuration for ssc-tui
+# Runs tests, linting, and formatting checks on all pushes and merge requests
+
+# Define build stages
+stages:
+  - check
+  - test
+  - lint
+
+# Use official Rust image
+# Using stable Rust as the project targets edition 2021
+default:
+  image: rust:latest
+
+# Cache dependencies between jobs for faster builds
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cargo/
+    - target/
+
+# Job 1: Check that the code compiles
+check:
+  stage: check
+  script:
+    - rustc --version
+    - cargo --version
+    - cargo check --verbose
+  only:
+    - branches
+    - merge_requests
+
+# Job 2: Run all unit tests
+test:
+  stage: test
+  script:
+    - cargo test --verbose
+  artifacts:
+    reports:
+      junit: target/test-results.xml
+    when: always
+  only:
+    - branches
+    - merge_requests
+
+# Job 3: Run clippy (Rust linter)
+clippy:
+  stage: lint
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+  allow_failure: true
+  only:
+    - branches
+    - merge_requests
+
+# Job 4: Check code formatting
+format:
+  stage: lint
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+  allow_failure: true
+  only:
+    - branches
+    - merge_requests
+
+# Job 5: Build release binary (only on main branch)
+build-release:
+  stage: test
+  script:
+    - cargo build --release --verbose
+  artifacts:
+    paths:
+      - target/release/ssc-tui
+    expire_in: 1 week
+  only:
+    - main
+    - tags
+
+# Job 6: Run tests with coverage (optional, requires tarpaulin)
+coverage:
+  stage: test
+  script:
+    - cargo install cargo-tarpaulin
+    - cargo tarpaulin --out Xml --output-dir coverage
+  coverage: '/\d+\.\d+% coverage/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura.xml
+  allow_failure: true
+  only:
+    - main
+    - merge_requests

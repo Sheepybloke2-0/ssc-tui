@@ -51,17 +51,70 @@ cargo run --release      # Run optimized version
 
 ### Testing (inside container or local)
 ```bash
-cargo test               # Run all tests
+cargo test               # Run all tests (42 unit tests)
 cargo test <test_name>   # Run a specific test
 cargo test -- --nocapture # Run tests with output visible
+cargo test -- --test-threads=1 # Run tests sequentially
 ```
+
+**Test Coverage:**
+- **App Module** (20 tests): SortOrder, navigation, sorting, keyboard events, overlay
+- **SSC Module** (16 tests): Observatory methods, date parsing, serialization, client initialization
+- **UI Module** (6 tests): Helper functions like centered_rect()
 
 ### Code Quality (inside container or local)
 ```bash
 cargo fmt                # Format code
+cargo fmt -- --check     # Check formatting without modifying
 cargo clippy             # Run linter
+cargo clippy -- -D warnings # Run linter with warnings as errors
 cargo check              # Quick compile check without producing binary
 ```
+
+## CI/CD Pipeline
+
+This project uses GitLab CI/CD for automated testing and quality checks.
+
+### Pipeline Stages
+
+The `.gitlab-ci.yml` configuration defines the following stages:
+
+**1. Check Stage:**
+- Verifies that the code compiles with `cargo check`
+- Runs on all branches and merge requests
+
+**2. Test Stage:**
+- Runs all 42 unit tests with `cargo test`
+- Builds release binary (only on main branch)
+- Generates test coverage reports with `cargo-tarpaulin`
+
+**3. Lint Stage:**
+- Runs `cargo clippy` for linting (warnings as errors)
+- Checks code formatting with `cargo fmt --check`
+- Both jobs allowed to fail to not block development
+
+### Pipeline Jobs
+
+| Job | Stage | Runs On | Purpose |
+|-----|-------|---------|---------|
+| `check` | check | All branches/MRs | Compile verification |
+| `test` | test | All branches/MRs | Run unit tests |
+| `clippy` | lint | All branches/MRs | Linting checks |
+| `format` | lint | All branches/MRs | Formatting checks |
+| `build-release` | test | main, tags | Build release binary |
+| `coverage` | test | main, MRs | Code coverage reports |
+
+### Caching
+
+Dependencies are cached between jobs using `CARGO_HOME` and `target/` directories to speed up builds.
+
+### Viewing Pipeline Results
+
+After pushing to GitLab:
+1. Go to CI/CD → Pipelines in your GitLab project
+2. Click on a pipeline to see job status
+3. Click on individual jobs to view logs
+4. Download artifacts (test reports, release binaries) from successful jobs
 
 ## Git Workflow
 

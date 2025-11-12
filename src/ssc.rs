@@ -289,3 +289,262 @@ impl Default for SscClient {
         Self::new().expect("Failed to create SSC client")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_observatory_resolution_str() {
+        let obs = create_test_observatory(60);
+        assert_eq!(obs.resolution_str(), "1min");
+
+        let obs = create_test_observatory(180);
+        assert_eq!(obs.resolution_str(), "3min");
+
+        let obs = create_test_observatory(300);
+        assert_eq!(obs.resolution_str(), "5min");
+
+        let obs = create_test_observatory(720);
+        assert_eq!(obs.resolution_str(), "12min");
+
+        let obs = create_test_observatory(3600);
+        assert_eq!(obs.resolution_str(), "1hr");
+
+        let obs = create_test_observatory(90);
+        assert_eq!(obs.resolution_str(), "90s");
+    }
+
+    #[test]
+    fn test_observatory_start_time_parsed_valid() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            resolution: 60,
+            start_time: "2020-01-15T10:30:00Z".to_string(),
+            end_time: "2030-01-01T00:00:00Z".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        let parsed = obs.start_time_parsed().unwrap();
+        assert_eq!(parsed.format("%Y-%m-%d").to_string(), "2020-01-15");
+    }
+
+    #[test]
+    fn test_observatory_start_time_parsed_invalid() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            resolution: 60,
+            start_time: "invalid-date".to_string(),
+            end_time: "2030-01-01T00:00:00Z".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        assert!(obs.start_time_parsed().is_err());
+    }
+
+    #[test]
+    fn test_observatory_end_time_parsed_valid() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            resolution: 60,
+            start_time: "2020-01-01T00:00:00Z".to_string(),
+            end_time: "2025-06-30T23:59:59Z".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        let parsed = obs.end_time_parsed().unwrap();
+        assert_eq!(parsed.format("%Y-%m-%d").to_string(), "2025-06-30");
+    }
+
+    #[test]
+    fn test_observatory_end_time_parsed_invalid() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            resolution: 60,
+            start_time: "2020-01-01T00:00:00Z".to_string(),
+            end_time: "not-a-date".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        assert!(obs.end_time_parsed().is_err());
+    }
+
+    #[test]
+    fn test_observatory_description_active() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test Satellite".to_string(),
+            resolution: 60,
+            start_time: "2020-01-01T00:00:00Z".to_string(),
+            end_time: "2099-12-31T23:59:59Z".to_string(), // Far in the future
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        let desc = obs.description();
+        assert!(desc.contains("Active"));
+        assert!(desc.contains("1min"));
+        assert!(desc.contains("2020"));
+    }
+
+    #[test]
+    fn test_observatory_description_historical() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test Satellite".to_string(),
+            resolution: 300,
+            start_time: "2010-01-01T00:00:00Z".to_string(),
+            end_time: "2015-01-01T00:00:00Z".to_string(), // In the past
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        let desc = obs.description();
+        assert!(desc.contains("Historical"));
+        assert!(desc.contains("5min"));
+        assert!(desc.contains("2010"));
+    }
+
+    #[test]
+    fn test_observatory_description_invalid_date() {
+        let obs = Observatory {
+            id: "test".to_string(),
+            name: "Test Satellite".to_string(),
+            resolution: 60,
+            start_time: "invalid-date".to_string(),
+            end_time: "also-invalid".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        };
+
+        let desc = obs.description();
+        assert!(desc.contains("Unknown"));
+    }
+
+    #[test]
+    fn test_ssc_client_new() {
+        let client = SscClient::new();
+        assert!(client.is_ok());
+
+        let client = client.unwrap();
+        assert_eq!(client.base_url, "https://sscweb.gsfc.nasa.gov/WS/sscr/2");
+        assert_eq!(client.cached_count(), 0);
+        assert!(client.satellites_cache.is_none());
+    }
+
+    #[test]
+    fn test_ssc_client_default() {
+        // This should not panic
+        let _client = SscClient::default();
+    }
+
+    #[test]
+    fn test_ssc_client_cached_count_empty() {
+        let client = SscClient::new().unwrap();
+        assert_eq!(client.cached_count(), 0);
+    }
+
+    #[test]
+    fn test_ssc_client_cached_count_with_data() {
+        let mut client = SscClient::new().unwrap();
+
+        // Manually populate cache for testing
+        let mut cache = HashMap::new();
+        cache.insert("sat1".to_string(), create_test_observatory(60));
+        cache.insert("sat2".to_string(), create_test_observatory(300));
+        cache.insert("sat3".to_string(), create_test_observatory(3600));
+
+        client.satellites_cache = Some(cache);
+
+        assert_eq!(client.cached_count(), 3);
+    }
+
+    #[test]
+    fn test_observatory_serialization() {
+        let obs = Observatory {
+            id: "test-sat".to_string(),
+            name: "Test Satellite".to_string(),
+            resolution: 60,
+            start_time: "2020-01-01T00:00:00Z".to_string(),
+            end_time: "2030-01-01T00:00:00Z".to_string(),
+            resource_id: Some("spase://NASA/Observatory/TestSat".to_string()),
+            group_id: vec!["group1".to_string(), "group2".to_string()],
+        };
+
+        // Test that it can be serialized
+        let json = serde_json::to_string(&obs);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_observatory_deserialization() {
+        let json = r#"{
+            "Id": "test-sat",
+            "Name": "Test Satellite",
+            "Resolution": 60,
+            "StartTime": "2020-01-01T00:00:00Z",
+            "EndTime": "2030-01-01T00:00:00Z",
+            "ResourceId": "spase://NASA/Observatory/TestSat",
+            "GroupId": ["group1", "group2"]
+        }"#;
+
+        let obs: Result<Observatory, _> = serde_json::from_str(json);
+        assert!(obs.is_ok());
+
+        let obs = obs.unwrap();
+        assert_eq!(obs.id, "test-sat");
+        assert_eq!(obs.name, "Test Satellite");
+        assert_eq!(obs.resolution, 60);
+        assert_eq!(obs.resource_id, Some("spase://NASA/Observatory/TestSat".to_string()));
+        assert_eq!(obs.group_id, vec!["group1", "group2"]);
+    }
+
+    #[test]
+    fn test_observatory_deserialization_optional_fields() {
+        let json = r#"{
+            "Id": "test-sat",
+            "Name": "Test Satellite",
+            "Resolution": 60,
+            "StartTime": "2020-01-01T00:00:00Z",
+            "EndTime": "2030-01-01T00:00:00Z"
+        }"#;
+
+        let obs: Result<Observatory, _> = serde_json::from_str(json);
+        assert!(obs.is_ok());
+
+        let obs = obs.unwrap();
+        assert_eq!(obs.resource_id, None);
+        assert_eq!(obs.group_id, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_coordinate_system_variants() {
+        // Just verify all variants exist and can be created
+        let _geo = CoordinateSystem::Geo;
+        let _gm = CoordinateSystem::Gm;
+        let _gse = CoordinateSystem::Gse;
+        let _gsm = CoordinateSystem::Gsm;
+        let _sm = CoordinateSystem::Sm;
+    }
+
+    // Helper function
+    fn create_test_observatory(resolution: u32) -> Observatory {
+        Observatory {
+            id: "test".to_string(),
+            name: "Test Observatory".to_string(),
+            resolution,
+            start_time: "2020-01-01T00:00:00Z".to_string(),
+            end_time: "2030-01-01T00:00:00Z".to_string(),
+            resource_id: None,
+            group_id: vec![],
+        }
+    }
+}
