@@ -73,48 +73,79 @@ cargo check              # Quick compile check without producing binary
 
 ## CI/CD Pipeline
 
-This project uses GitLab CI/CD for automated testing and quality checks.
+This project uses GitHub Actions for automated testing and quality checks.
 
-### Pipeline Stages
+### Workflow Overview
 
-The `.gitlab-ci.yml` configuration defines the following stages:
+The `.github/workflows/ci.yml` configuration defines the following jobs:
 
-**1. Check Stage:**
+**Check Job:**
 - Verifies that the code compiles with `cargo check`
-- Runs on all branches and merge requests
+- Runs on all branches and pull requests
+- Uses Rust stable toolchain
 
-**2. Test Stage:**
+**Test Suite Job:**
 - Runs all 42 unit tests with `cargo test`
-- Builds release binary (only on main branch)
-- Generates test coverage reports with `cargo-tarpaulin`
+- Generates test report artifacts
+- Runs on all branches and pull requests
 
-**3. Lint Stage:**
+**Clippy Job:**
 - Runs `cargo clippy` for linting (warnings as errors)
+- Allowed to fail (continue-on-error) to not block development
+- Runs on all branches and pull requests
+
+**Format Job:**
 - Checks code formatting with `cargo fmt --check`
-- Both jobs allowed to fail to not block development
+- Allowed to fail (continue-on-error) to not block development
+- Runs on all branches and pull requests
 
-### Pipeline Jobs
+**Build Release Job:**
+- Builds optimized release binary
+- Only runs on `main` branch or tags
+- Requires check and test jobs to pass first
+- Uploads binary artifact (7-day retention)
 
-| Job | Stage | Runs On | Purpose |
-|-----|-------|---------|---------|
-| `check` | check | All branches/MRs | Compile verification |
-| `test` | test | All branches/MRs | Run unit tests |
-| `clippy` | lint | All branches/MRs | Linting checks |
-| `format` | lint | All branches/MRs | Formatting checks |
-| `build-release` | test | main, tags | Build release binary |
-| `coverage` | test | main, MRs | Code coverage reports |
+**Coverage Job:**
+- Generates code coverage reports with `cargo-tarpaulin`
+- Uploads to Codecov
+- Only runs on `main` branch or pull requests
+- Allowed to fail to not block development
+
+### Workflow Jobs Summary
+
+| Job | Runs On | Triggers | Purpose |
+|-----|---------|----------|---------|
+| `check` | ubuntu-latest | All pushes/PRs | Compile verification |
+| `test` | ubuntu-latest | All pushes/PRs | Run 42 unit tests |
+| `clippy` | ubuntu-latest | All pushes/PRs | Linting checks |
+| `format` | ubuntu-latest | All pushes/PRs | Formatting checks |
+| `build-release` | ubuntu-latest | main, tags | Build release binary |
+| `coverage` | ubuntu-latest | main, PRs | Code coverage reports |
 
 ### Caching
 
-Dependencies are cached between jobs using `CARGO_HOME` and `target/` directories to speed up builds.
+Dependencies are cached between workflow runs using `actions/cache@v3`:
+- `~/.cargo/registry` - Cargo registry cache
+- `~/.cargo/git` - Cargo git dependencies
+- `target/` - Compiled artifacts
 
-### Viewing Pipeline Results
+This significantly speeds up subsequent runs.
 
-After pushing to GitLab:
-1. Go to CI/CD → Pipelines in your GitLab project
-2. Click on a pipeline to see job status
-3. Click on individual jobs to view logs
-4. Download artifacts (test reports, release binaries) from successful jobs
+### Viewing Workflow Results
+
+After pushing to GitHub:
+1. Go to the **Actions** tab in your GitHub repository
+2. Click on a workflow run to see job status
+3. Click on individual jobs to view logs and steps
+4. Download artifacts (test reports, release binaries, coverage) from successful jobs
+5. Green checkmarks indicate passing jobs, red X's indicate failures
+
+### Workflow Triggers
+
+The CI workflow runs on:
+- Every push to any branch
+- Every pull request to any branch
+- Manual workflow dispatch (from Actions tab)
 
 ## Git Workflow
 
